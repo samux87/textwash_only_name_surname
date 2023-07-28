@@ -37,9 +37,17 @@ class Anonymiser:
         ]
 
     def replace_identified_entities(self, entities, anon_input_seq, entity2generic):
+        
+        classes_to_skip = ('OCCUPATION', 'LOCATION', 'TIME', 'ORGANIZATION', 
+                           'DATE', 'ADDRESS', 'PHONE_NUMBER', 'EMAIL_ADDRESS', 
+                           'OTHER_IDENTIFYING_ATTRIBUTE')
+           
         for phrase, _ in sorted(
             entities.items(), key=lambda x: len(x[0]), reverse=True
         ):
+            if entity2generic[phrase].startswith(classes_to_skip): 
+                continue
+            
             try:
                 for char in self.valid_surrounding_chars:
                     anon_input_seq = re.sub(
@@ -47,7 +55,7 @@ class Anonymiser:
                         " {}{}".format(entity2generic[phrase], char),
                         anon_input_seq,
                     )
-
+                
                 anon_input_seq = re.sub(
                     "[^a-zA-Z0-9\n]{}[^a-zA-Z0-9\n]".format(phrase),
                     " {} ".format(entity2generic[phrase]),
@@ -63,18 +71,17 @@ class Anonymiser:
                 anon_input_seq = anon_input_seq.replace(
                     "{}".format(phrase), "{}".format(entity2generic[phrase])
                 )
-
+        
         return anon_input_seq
 
     def anonymise(self, input_seq):
         orig_input_seq = deepcopy(input_seq)
         anon_input_seq = " {}".format(deepcopy(input_seq))
         entities = self.get_identifiable_tokens(deepcopy(input_seq))
-
         entities = {k: v for [k, v] in entities if k != self.config.unk_token}
         entity2generic_c = {v: 1 for _, v in entities.items()}
         entity2generic = {}
-
+        
         inv = [k for k, _ in entities.items() if len(k) == 1 and not k.isalnum()]
 
         for ex in list(set(inv)):
@@ -82,7 +89,7 @@ class Anonymiser:
                 del entities[ex]
             except KeyError:
                 pass
-
+      
         anon_input_seq = re.sub("https*://\S+", "URL", anon_input_seq)
 
         for phrase, entity_type in entities.items():
@@ -108,73 +115,7 @@ class Anonymiser:
         anon_input_seq = self.replace_identified_entities(
             unfound_entities, anon_input_seq, entity2generic
         )
-
-        all_numeric = list(set(re.findall("[0-9]+", anon_input_seq)))
-        numeric_map = {k: "NUMERIC_{}".format(v + 1) for v, k in enumerate(all_numeric)}
-
-        for k, v in sorted(numeric_map.items(), key=lambda x: int(x[0]), reverse=True):
-            anon_input_seq = re.sub(
-                "[^NUMERIC_0-9+]{}".format(k), " {}".format(v), anon_input_seq
-            )
-
-        pronoun_map = {
-            "he": "PRONOUN",
-            "she": "PRONOUN",
-            "him": "PRONOUN",
-            "his": "PRONOUN",
-            "her": "PRONOUN",
-            "hers": "PRONOUN",
-            "himself": "PRONOUN",
-            "herself": "PRONOUN",
-            "mr": "MR/MS",
-            "mrs": "MR/MS",
-            "miss": "MR/MS",
-            "ms": "MR/MS",
-            "dr": "TITLE",
-            "dr.": "TITLE",
-            "prof": "TITLE",
-            "prof.": "TITLE",
-            "sir": "TITLE",
-            "dame": "TITLE",
-            "madam": "TITLE",
-            "lady": "TITLE",
-            "lord": "TITLE",
-        }
-
-        for k, v in pronoun_map.items():
-            if anon_input_seq.startswith("{} ".format(k)):
-                anon_input_seq = anon_input_seq.replace(
-                    "{} ".format(k), "{} ".format(v), 1
-                )
-
-            if anon_input_seq.startswith("{} ".format(k.capitalize())):
-                anon_input_seq = anon_input_seq.replace(
-                    "{} ".format(k.capitalize()), "{} ".format(v), 1
-                )
-
-            for char in self.valid_surrounding_chars:
-                anon_input_seq = re.sub(
-                    "[^a-zA-Z0-9]{}[{}]".format(k, char),
-                    " {}{}".format(v, char),
-                    anon_input_seq,
-                )
-                anon_input_seq = re.sub(
-                    "[^a-zA-Z0-9]{}[{}]".format(k.capitalize(), char),
-                    " {}{}".format(v, char),
-                    anon_input_seq,
-                )
-
-            anon_input_seq = re.sub(
-                "[^a-zA-Z0-9]{}[^a-zA-Z0-9]".format(k),
-                " {} ".format(v),
-                anon_input_seq,
-            )
-            anon_input_seq = re.sub(
-                "[^a-zA-Z0-9]{}[^a-zA-Z0-9]".format(k.capitalize()),
-                " {} ".format(v),
-                anon_input_seq,
-            )
-
+         
         entity2generic_c = {"DATE": 1, "NUMERIC": 1}
         entity2generic = {}
 
@@ -253,6 +194,8 @@ class Anonymiser:
         entities = get_named_entities_from_preds(
             seq_t, preds_t, self.data_processor.label_map_rev
         )
+        
+        #print(entities)
 
         for [entity, entity_type] in entities:
             try:
