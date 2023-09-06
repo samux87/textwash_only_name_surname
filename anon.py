@@ -8,6 +8,7 @@ from anonymiser import Anonymiser
 from utils import load_model
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="Required + optional arguments")
     parser.add_argument(
         "--cpu",
